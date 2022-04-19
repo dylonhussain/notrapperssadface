@@ -1,6 +1,6 @@
 library (tidyverse)
 library (caret)
-
+set.seed(5)
 #Download zipped csv to data
 url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00372/HTRU2.zip'
 file = 'HTRU_2.csv'
@@ -11,10 +11,12 @@ con = unz('HTRU2.zip', file)
 data = read.csv(con, header = FALSE)
 colnames(data) = c('pmean', 'psd', 'pkurt', 'pskew', 'cmean', 'csd', 'ckurt', 'cskew', 'pulsar')
 
+Beta = 2
+
 #Change pulsar to factor
 data$pulsar=as.factor(data$pulsar)
 
-#Keep .1 of data for validation
+#Keep .3 of data for validation
 ind = createDataPartition(data$pulsar, times = 1, p = .7, list = FALSE)
 train = data[ind,]
 test = data[-ind,]
@@ -24,20 +26,29 @@ strapcount = 100
 bootind = createResample(train$pulsar, times = strapcount, list = FALSE)
 
 #Returns hit ratio and f score for given model
-f_acc = function(model){
+modelstats = function(model, b = Beta){
   f = 0
-  hr = 0
+  sens = 0
+  spec = 0
   for (i in c(1:strapcount)){
     bootstrap = train[bootind[,i],]
-    temp = bootstrap %>% mutate(pulsarhat = predict(model)) %>% 
-      select(pulsar, pulsarhat) %>% mutate(hit = pulsar == pulsarhat)
-    f = f + F_meas(temp[,'pulsarhat'], reference = temp[,'pulsar'], beta = 2)
-    hr = hr + mean(temp$hit)
+    temp = bootstrap %>% mutate(pulsarhat = predict(model, newdata = bootstrap)) %>%
+      select(pulsar, pulsarhat)
+    cm = confusionMatrix(temp$pulsarhat, reference = temp$pulsar)
+    sens = sens + cm$byClass['Sensitivity']
+    spec = spec + cm$byClass['Specificity']
+    f = f + F_meas(temp[,'pulsarhat'], reference = temp[,'pulsar'], beta = b)
   }
-  f = f/strapcount
-  hr = hr/strapcount
-  data.frame(f, hr)
+  df = data.frame(c(sens, spec, f, b)) %>% t()
+  colnames(df) = c('sensitivity', 'specificity','fScore', 'beta')
+  df
 }
+
+f1 <- function(data, lev = NULL, model = NULL) {
+  f1_val <- F_meas(data$pred, reference = data$obs, beta = Beta)
+  c(F1 = f1_val)
+}
+
 
 #exploratory boxplots
 explore = train %>% gather('key', 'value', 1:8)
@@ -59,53 +70,69 @@ explore %>%
 
 machinefood = machinefood[, !names(machinefood) %in% c('pmean', 'pskew')]
 
-##########################Probably garbage, remanent from old strategy
-# explore = train[,c(1,2,3,5,6,7,8)] %>% gather('key', 'value', c(1,2,4,5,6,7))
-# explore %>%  ggplot(aes(x = pkurt, y = value, group = pkurt)) + 
-#   geom_point()  + facet_wrap(~key, scales = 'free')
-# 
-# explore = train[,c(1,2,4,5,6,7,8)] %>% gather('key', 'value', c(1,2,4,5,6,7))
-# explore %>%  ggplot(aes(x = pskew, y = value, group = pskew)) + 
-#   geom_point()  + facet_wrap(~key, scales = 'free')
-# 
-# train %>% ggplot(aes(x = pkurt, y = pmean)) + geom_point()
+#check if cmean and psd are not dependent
+explore = machinefood[,c('cmean', 'psd')]
+explore %>% ggplot(aes(x = cmean, y = psd)) + geom_point() 
+
+rfmodel = train(pulsar~., 
+                 machinefood, 
+                 method = 'Rborist', 
+                 trControl = trainControl(method = 'boot', summaryFunction = f1))
+allstats = modelstats(rfmodel, Beta) %>% data.frame() %>% mutate(model = 'Rborist')
+
+for (b in c(2:5)){
+  Beta = b
+  print(Beta)
+  rfmodel = train(pulsar~., 
+                  machinefood, 
+                  method = 'Rborist', 
+                  trControl = trainControl(method = 'boot', summaryFunction = f1))
+  temp = modelstats(rfmodel, Beta) %>% data.frame() %>% mutate(model = 'Rborist')
+  allstats = union(allstats,temp)
+  
+  knnmodel = train(pulsar~., 
+                   machinefood, 
+                   method = 'knn', 
+                   trControl = trainControl(method = 'boot', summaryFunction = f1))
+  temp = modelstats(knnmodel, Beta) %>% data.frame() %>% mutate(model = 'knn')
+  allstats = union(allstats, temp)
+  
+  glmmodel = train(pulsar~., 
+                   machinefood, 
+                   method = 'glm', 
+                   trControl = trainControl(method = 'boot', summaryFunction = f1))
+  temp = modelstats(glmmodel, Beta) %>% data.frame() %>% mutate(model = 'glm')
+  allstats = union(allstats, temp)
+  
+  
+  nbmodel = train(pulsar~., 
+                  machinefood, 
+                  method = 'nb', 
+                  trControl = trainControl(method = 'boot', summaryFunction = f1))
+  temp = modelstats(nbmodel, Beta) %>% data.frame() %>% mutate(model = 'nb')
+  allstats = union(allstats, temp)
+  
+  svmmodel = train(pulsar~., 
+                   machinefood, 
+                   method = 'svmLinearWeights2', 
+                   trControl = trainControl(method = 'boot', summaryFunction = f1))
+  temp = modelstats(svmmodel, Beta) %>% data.frame() %>% mutate(model = 'svm')
+  allstats = union(allstats, temp)
+}
+rownames(stats) = c(1:100)
 
 
-
-#pkurt and pskew are good candidates
-#because tight 50% on edge of range
-#slope is almost zero 
-#at low pkurt (which is where 1 & 0 overlap) and where most of the data is
-#csd has good separation too and is not strongly correlated to kurt or skew
-# train %>% ggplot(aes(x = pkurt, y = pskew)) +geom_point()
-# train %>% ggplot(aes(x = csd, y = pskew)) +geom_point()
-# train %>% ggplot(aes(x = pkurt, y = csd)) +geom_point()
-# 
-# train %>% select(pulsar, pkurt, pskew, csd) %>% 
-#   gather('key', 'value', c(pkurt, pskew, csd)) %>%
-#   ggplot(aes(x=pulsar, y = value, group = pulsar)) + 
-#   geom_boxplot() + facet_wrap(~key, scales = 'free')
-########################################################
-
-#random forest model
-rfmodel1 = train(pulsar ~ pkurt + pskew, train, method = 'Rborist')
-rfmodel1stats = f_acc(rfmodel1)
-
-rfmodel2 = train(pulsar ~ pkurt + pskew + csd, train, method = 'Rborist')
-start = timestamp()
-rfmodel2stats = f_acc(rfmodel2)
-end = timestamp()
-
-start = timestamp()
-rfmodel3 = train(pulsar ~. , machinefood, method = 'Rborist')
-rfmodel3stats = f_acc(rfmodel2)
-end = timestamp()
-
-saveRDS(rfmodel2, file = 'rfmodel2.Rda')
-saveRDS(rfmodel1, file = 'rfmodel1.Rda')
-saveRDS(rfmodel3, file = 'rfmodel3.Rda')
-saveRDS(rfmodel1stats, file = 'rfmodel1stats.Rda')
-saveRDS(rfmodel3stats, file = 'rfmodel3stats.Rda')
-#
-
+# saveRDS(machinefood, file = 'machinefood.Rda')
+# saveRDS(rfmodel, file = 'rfmodel.Rda')
+# saveRDS(rfmodel1stats, file = 'rfmodel1stats.Rda')
+# saveRDS(rfmodel3stats, file = 'rfmodel3stats.Rda')
+# saveRDS(knnmodel, file = 'knnmodel.Rda')
+# saveRDS(knnmodelstats, file = 'knnmodelstats.Rda')
+# saveRDS(glmmodel, file = 'glmmodel.Rda')
+# saveRDS(glmmodelstats, file = 'glmmodelstats.Rda')
+# saveRDS(nbmodel, file = 'nbmodel.Rda')
+# saveRDS(nbmodelstats, file = 'nbmodelstats.Rda')
+# saveRDS(svmmodel, file = 'svmmodel.Rda')
+# rfmodel3 = read_rds('rfmodel3.Rda')
+# knnmodel = read_rds('knnmodel.Rda')
 
