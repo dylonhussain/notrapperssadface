@@ -1,6 +1,7 @@
 library (tidyverse)
 library (caret)
 set.seed(5)
+
 #Download zipped csv to data
 url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00372/HTRU2.zip'
 file = 'HTRU_2.csv'
@@ -10,8 +11,6 @@ con = unz(dl, file)
 con = unz('HTRU2.zip', file)
 data = read.csv(con, header = FALSE)
 colnames(data) = c('pmean', 'psd', 'pkurt', 'pskew', 'cmean', 'csd', 'ckurt', 'cskew', 'pulsar')
-#>1 to minimize false negatives
-Beta = 2
 
 #Change pulsar to factor
 data$pulsar=as.factor(data$pulsar)
@@ -20,200 +19,210 @@ data$pulsar=as.factor(data$pulsar)
 ind = createDataPartition(data$pulsar, times = 1, p = .7, list = FALSE)
 train = data[ind,]
 test = data[-ind,]
+saveRDS(train, 'train.rda')
+saveRDS(test, 'test.rda')
 
-#make bootstrap indicies
+#Make bootstrap indicies
 strapcount = 100
 bootind = createResample(train$pulsar, times = strapcount, list = FALSE)
 
-#Returns hit ratio and f score for given model
+#Returns fscore, sensitivity, and specificity for a given model by bootstrapping
 modelstats = function(model, b = Beta){
   f = 0
   sens = 0
   spec = 0
   for (i in c(1:strapcount)){
+    #Create bootstrap
     bootstrap = train[bootind[,i],]
+    #Estimate outcome
     temp = bootstrap %>% mutate(pulsarhat = predict(model, newdata = bootstrap)) %>%
       select(pulsar, pulsarhat)
     cm = confusionMatrix(temp$pulsarhat, reference = temp$pulsar)
+    #Add values to be averaged
     sens = sens + cm$byClass['Sensitivity']
     spec = spec + cm$byClass['Specificity']
     f = f + F_meas(temp[,'pulsarhat'], reference = temp[,'pulsar'], beta = b)
   }
+  #Take averages
+  sens = sens/strapcount
+  spec = spec/strapcount
+  f = f/strapcount
+  #Put in data frame and rename
   df = data.frame(c(sens, spec, f, b)) %>% t()
   colnames(df) = c('sensitivity', 'specificity','fScore', 'beta')
   df
 }
+#Set Beta for F-score
+Beta = 1
 
+#Function to return F1 score, used for training models
 f1 <- function(data, lev = NULL, model = NULL) {
   f1_val <- F_meas(data$pred, reference = data$obs, beta = Beta)
   c(F1 = f1_val)
 }
 
+#Function to return specificity, used for training models
 spec <- function(data, lev = NULL, model = NULL) {
   c(Specificity = specificity(data = data$pred, reference = data$obs))
 }
 
 
-#exploratory boxplots
-explore = train %>% gather('key', 'value', 1:8)
-explore %>%  ggplot(aes(x = pulsar, y = value, group = pulsar)) + 
+#Exploratory boxplots
+train %>% gather('key', 'value', 1:8) %>%  
+  ggplot(aes(x = pulsar, y = value, group = pulsar)) + 
   geom_boxplot()  + facet_wrap(~key, scales = 'free')
 
 #Start with csd and weed out ones that have strong dependence
-machinefood = train
-explore = machinefood[,names(machinefood) != 'pulsar'] %>% gather('key', 'value', -one_of('csd'))
-explore %>% 
-  ggplot(aes(x = csd, y = value, group = key)) + geom_point() + facet_wrap(~key, scales = 'free')
+train[,names(train) != 'pulsar'] %>% 
+  gather('key', 'value', -one_of('csd')) %>% 
+  ggplot(aes(x = csd, y = value, group = key)) + 
+  geom_point() + facet_wrap(~key, scales = 'free')
 
+machinefood = train
 machinefood = machinefood[, !names(train) %in% c('ckurt', 'cskew')]
 
 #Add pkurt and weed out ones that have strong dependence
-explore = machinefood[,names(machinefood) != 'pulsar'] %>% gather('key', 'value', -one_of('pkurt'))
-explore %>% 
-  ggplot(aes(x = pkurt, y = value, group = key)) + geom_point() + facet_wrap(~key, scales = 'free')
+train[,!names(train) %in% c('pulsar', 'ckurt', 'cskew')] %>% 
+  gather('key', 'value', -one_of('pkurt'))%>% 
+  ggplot(aes(x = pkurt, y = value, group = key)) + 
+  geom_point() + facet_wrap(~key, scales = 'free')
 
 machinefood = machinefood[, !names(machinefood) %in% c('pmean', 'pskew')]
 
-#check if cmean and psd are not dependent
-explore = machinefood[,c('cmean', 'psd')]
-explore %>% ggplot(aes(x = cmean, y = psd)) + geom_point() 
+#check if cmean and psd are dependent
+train[,c('cmean', 'psd')]%>% ggplot(aes(x = cmean, y = psd)) + geom_point() 
 
+#Train models with default metric
 rfmodel = train(pulsar~., 
                  machinefood, 
                  method = 'Rborist', 
                  trControl = trainControl(method = 'boot'))
-temp = modelstats(rfmodel, Beta) %>% data.frame() %>% mutate(model = 'Rborist no metric')
 
 knnmodel = train(pulsar~., 
                 machinefood, 
                 method = 'knn', 
                 trControl = trainControl(method = 'boot'))
-temp = modelstats(knnmodel, Beta) %>% data.frame() %>% mutate(model = 'knn no metric')
 
 glmmodel = train(pulsar~., 
                  machinefood, 
                  method = 'glm', 
                  trControl = trainControl(method = 'boot'))
-temp = modelstats(glmmodel, Beta) %>% data.frame() %>% mutate(model = 'glm no metric')
 
 nbmodel = train(pulsar~., 
                  machinefood, 
                  method = 'nb', 
                  trControl = trainControl(method = 'boot'))
+
+#Estimate performance of each model and add them to allstats data frame
+allstats = modelstats(rfmodel, Beta) %>% data.frame() %>% mutate(model = 'Rborist no metric')
+
+temp = modelstats(knnmodel, Beta) %>% data.frame() %>% mutate(model = 'knn no metric')
+allstats = union(allstats,temp)
+
+temp = modelstats(glmmodel, Beta) %>% data.frame() %>% mutate(model = 'glm no metric')
+allstats = union(allstats,temp)
+
 temp = modelstats(nbmodel, Beta) %>% data.frame() %>% mutate(model = 'nb no metric')
+allstats = union(allstats,temp)
 
-svmmodel = train(pulsar~., 
-                 machinefood, 
-                 method = 'svm', 
-                 trControl = trainControl(method = 'boot'))
-temp = modelstats(svmmodel, Beta) %>% data.frame() %>% mutate(model = 'svm no metric')
-
-
-for (b in c(2:5)){
+#Train models with varying F1 metric and varying betas
+for (b in c(1:9)/10){
+  #Set Beta
   Beta = b
   print(Beta)
+  
+  #Train
   rfmodel = train(pulsar~., 
                   machinefood, 
                   method = 'Rborist', 
                   trControl = trainControl(method = 'boot', summaryFunction = f1),
                   metric = 'F1')
-  temp = modelstats(rfmodel, Beta) %>% data.frame() %>% mutate(model = 'Rborist')
-  allstats = union(allstats,temp)
   
   knnmodel = train(pulsar~., 
                    machinefood, 
                    method = 'knn', 
                    trControl = trainControl(method = 'boot', summaryFunction = f1), 
                    metric = 'F1')
-  temp = modelstats(knnmodel, Beta) %>% data.frame() %>% mutate(model = 'knn')
-  allstats = union(allstats, temp)
   
   glmmodel = train(pulsar~., 
                    machinefood, 
                    method = 'glm', 
                    trControl = trainControl(method = 'boot', summaryFunction = f1),
                    metric = 'F1')
-  temp = modelstats(glmmodel, Beta) %>% data.frame() %>% mutate(model = 'glm')
-  allstats = union(allstats, temp)
-  
   
   nbmodel = train(pulsar~., 
                   machinefood, 
                   method = 'nb', 
                   trControl = trainControl(method = 'boot', summaryFunction = f1),
                   metric = 'F1')
-  temp = modelstats(nbmodel, Beta) %>% data.frame() %>% mutate(model = 'nb')
+  
+  #Estimate performance
+  temp = modelstats(rfmodel, Beta) %>% data.frame() %>% mutate(model = 'Rborist')
+  allstats = union(allstats,temp)
+  
+  temp = modelstats(knnmodel, Beta) %>% data.frame() %>% mutate(model = 'knn')
   allstats = union(allstats, temp)
   
-  svmmodel = train(pulsar~., 
-                   machinefood, 
-                   method = 'svmLinearWeights2', 
-                   trControl = trainControl(method = 'boot', summaryFunction = f1),
-                   metric = 'F1')
-  temp = modelstats(svmmodel, Beta) %>% data.frame() %>% mutate(model = 'svm')
+  temp = modelstats(glmmodel, Beta) %>% data.frame() %>% mutate(model = 'glm')
+  allstats = union(allstats, temp)
+  
+  temp = modelstats(nbmodel, Beta) %>% data.frame() %>% mutate(model = 'nb')
   allstats = union(allstats, temp)
 }
 
+#Train models with specificty as metric
 rfmodel = train(pulsar~., 
                 machinefood, 
                 method = 'Rborist', 
                 trControl = trainControl(method = 'boot', summaryFunction = spec),
                 metric = 'Specificity')
-temp = modelstats(rfmodel, 2) %>% data.frame %>% mutate(model = 'Rborist Specificity')
-allstats = union(allstats, temp)
 
 knnmodel = train(pulsar~., 
                 machinefood, 
                 method = 'knn', 
                 trControl = trainControl(method = 'boot', summaryFunction = spec),
                 metric = 'Specificity')
-temp = modelstats(knnmodel, 2) %>% data.frame %>% mutate(model = 'knn Specificity')
-allstats = union(allstats, temp)
 
 glmmodel = train(pulsar~., 
                 machinefood, 
                 method = 'glm', 
                 trControl = trainControl(method = 'boot', summaryFunction = spec),
                 metric = 'Specificity')
-temp = modelstats(glmmodel, 2) %>% data.frame %>% mutate(model = 'glm Specificity')
-allstats = union(allstats, temp)
 
 nbmodel = train(pulsar~., 
                 machinefood, 
                 method = 'nb', 
                 trControl = trainControl(method = 'boot', summaryFunction = spec),
                 metric = 'Specificity')
+
+#Estimate performance
+temp = modelstats(rfmodel, 2) %>% data.frame %>% mutate(model = 'Rborist Specificity')
+allstats = union(allstats, temp)
+
+temp = modelstats(knnmodel, 2) %>% data.frame %>% mutate(model = 'knn Specificity')
+allstats = union(allstats, temp)
+
+temp = modelstats(glmmodel, 2) %>% data.frame %>% mutate(model = 'glm Specificity')
+allstats = union(allstats, temp)
+
 temp = modelstats(nbmodel, 2) %>% data.frame %>% mutate(model = 'nb Specificity')
 allstats = union(allstats, temp)
 
-svmmodel = ttrain(pulsar~., 
-                  machinefood, 
-                  method = 'svm', 
-                  trControl = trainControl(method = 'boot', summaryFunction = spec),
-                  metric = 'Specificity')
-temp = modelstats(svmmodel, 2) %>% data.frame %>% mutate(model = 'svm Specificity')
-allstats = union(allstats, temp)
-
+#Changes rownames (for aesthetics) and saves
 rownames(allstats) = c(1:as.numeric(count(allstats)))
 saveRDS(allstats, file = 'allstats.Rda')
 
-
+#beta = .8 had best metrics so train with that and apply to test set
+Beta = .8
+rfmodel = train(pulsar~., 
+                machinefood, 
+                method = 'Rborist', 
+                trControl = trainControl(method = 'boot', summaryFunction = f1),
+                metric = 'F1')
 
 temp = test %>% mutate(pulsarhat = predict(rfmodel, newdata = test))
 ans = confusionMatrix(temp$pulsarhat, reference = temp$pulsar)
-fscore = F_meas(data = temp$pulsarhat, reference = temp$pulsar, beta = 2)
-
-saveRDS(machinefood, file = 'machinefood.Rda')
-saveRDS(rfmodel, file = 'rfmodel.Rda')
-saveRDS(rfmodel1stats, file = 'rfmodel1stats.Rda')
-saveRDS(rfmodel3stats, file = 'rfmodel3stats.Rda')
-saveRDS(knnmodel, file = 'knnmodel.Rda')
-saveRDS(knnmodelstats, file = 'knnmodelstats.Rda')
-saveRDS(glmmodel, file = 'glmmodel.Rda')
-saveRDS(glmmodelstats, file = 'glmmodelstats.Rda')
-saveRDS(nbmodel, file = 'nbmodel.Rda')
-saveRDS(nbmodelstats, file = 'nbmodelstats.Rda')
-saveRDS(svmmodel, file = 'svmmodel.Rda')
-rfmodel3 = read_rds('rfmodel3.Rda')
-knnmodel = read_rds('knnmodel.Rda')
+saveRDS(ans, 'ans.Rda')
+# saveRDS(as.numeric(ans$byClass['Specificity']), 'Specificity.Rda')
+# saveRDS(as.numeric(ans$overall['Accuracy']), 'Accuracy.Rda')
 
