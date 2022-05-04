@@ -1,0 +1,113 @@
+---
+title: "Pulsars"
+author: "Dylon Hussain"
+date: "5/3/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Introduction
+ere we describe an analysis to identify pulsars from metrics from their signal. Pulsars are difficult to identify because they have a periodic signal but often stars that are not pulsars have periodic signals because of noise. Considering the large amount of stars observed and the scarcity of pulsars, identifying pulsars is a great problem for machine learning. 
+
+```{r loading-libs, message=FALSE, echo = FALSE}
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+```
+
+## Methods
+The test data contains 8 predictors listed in Table 1. a 70:30 split was chosen to for this model because about .01 of the stars were known to be pulsars and 1600 observations would likely not be a good estimate of the performance of the algoithm. 
+```{r Predictors, echo = FALSE}
+  Predictors = c('Mean of the integrated profile.', 'Standard deviation of the integrated profile.',
+           'Excess kurtosis of the integrated profile.', 'Skewness of the integrated profile.',
+           'Mean of the DM-SNR curve.', 'Standard deviation of the DM-SNR curve.',
+           'Excess kurtosis of the DM-SNR curve.','Skewness of the DM-SNR curve.')
+  Predictors_names = c('pmean', 'psd', 'pkurt', 'pskew', 'cmean', 'csd', 'ckurt', 'cskew')
+  varstable = data.frame(Predictors, Predictors_names)
+  kable(varstable, caption = 'Predictor Names')
+  
+```
+
+Figure 1 shows the boxplots for the predictors, csd was chosen as the first predictor use for the algorithm because only .75 of the pulsars have a csd that are outliers for not pulsars.
+
+```{r Boxplots, echo = FALSE, }
+  train = readRDS('train.Rda')
+  train %>% gather('key', 'value', 1:8) %>%  
+    ggplot(aes(x = pulsar, y = value, group = pulsar)) + 
+    geom_boxplot()  + facet_wrap(~key, scales = 'free')+
+    ggtitle('Figure 1')
+```
+I then checked for variables that had a strong relation to csd to exclude from the correlation. As shown if figure 2, cskew and ckurt both appear to be functions of csd so they were removed. Then pkurt was selected because it also has the property of .75 of the pulsars have a pkurt that are outliers for not pulsars.
+
+```{r Corr1, echo = FALSE, }
+  train[,names(train) != 'pulsar'] %>% 
+    gather('key', 'value', -one_of('csd')) %>% 
+    ggplot(aes(x = csd, y = value, group = key)) + 
+    geom_point() + facet_wrap(~key, scales = 'free')+
+    ggtitle('Figure 2')
+```
+then variables that  had a strong relation to pkurt were examined. Pmean and pskew appeared to be strongly related to pkurt so they were excluded. 
+
+
+  
+```{r Corr2, echo = FALSE, }
+  train[,!names(train) %in% c('pulsar', 'ckurt', 'cskew', 'csd')] %>% 
+    gather('key', 'value', -one_of('pkurt'))%>% 
+    ggplot(aes(x = pkurt, y = value, group = key)) + 
+    geom_point() + facet_wrap(~key, scales = 'free')+
+    ggtitle('Figure 3')
+```
+finally it was examined if the remaining two variables were related
+```{r Corr3, echo = FALSE, }
+  train[,c('cmean', 'psd')]%>% ggplot(aes(x = cmean, y = psd)) + geom_point() +
+    ggtitle('Figure 4')
+```
+I determined that the variables to train the algorithm with were listed in table 2
+```{r Predictors, echo = FALSE}
+  Predictors = c( 'Standard deviation of the integrated profile.',
+           'Excess kurtosis of the integrated profile.',
+           'Mean of the DM-SNR curve.', 'Standard deviation of the DM-SNR curve.')
+  Predictors_names = c('psd', 'pkurt','cmean', 'csd')
+  varstable = data.frame(Predictors, Predictors_names)
+  kable(varstable, caption = 'Predictor Names')
+  
+```
+
+4 machine learning algorithms were used trained with different metrics with the data available and assessed for their suitability for the task table 3 shows their performance metrics. 
+```{r Predictors, echo = FALSE}
+  allstats = readRDS('allstats.Rda') %>% arrange(desc(sensitivity)) %>% arrange(desc(specificity))
+  kable(allstats, caption = 'Model Performance', digits = 4)
+  
+```
+Since specificity is the most important metric because stars that are the algorithm predicts are pulsars will be further investigated and ones rejected may not be investigated to overturn the decision. for this reason the rborist model trained with a beta=.8 was chosen because it has the highest specificity without sacrificing sensitivity. 
+## Results
+
+
+the final model using $Y_{m,u} = \mu + b_m + b_u + bg_{u,m} + \epsilon_{u,i}$ was corrected for the rating bounds of 0.5-5. Using this model, a RMSE of 0.8585179 was acheived on the validation set. 
+## Conclusion
+Future work on this prediction algorithm would likely benefit from an implimentation of a KNN algorithm that uses the entire training set. Due to computational and time restraints, only a small subset of the training set was used to train the knn algorithm. Also, exploration of other smoothing algorithms might improve the RMSE. In conclusion, a satisfactory prediction algorithm was acheived using only the user, movie, genre effects on the average. 
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+We are going to use the following library:
+
+
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
