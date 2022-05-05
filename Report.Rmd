@@ -18,7 +18,7 @@ library(knitr)
 ```
 
 ## Methods
-The test data contains 8 predictors listed in Table 1. a 70:30 split was chosen to for this model because about .01 of the stars were known to be pulsars and 1600 observations would likely not be a good estimate of the performance of the algoithm. 
+The test data contains 8 predictors listed in Table 1. a 70:30 split was chosen to for this model because about .01 of the stars were known to be pulsars and 160 observations would likely not be a good estimate of the performance of the algoithm. 
 ```{r Predictors, echo = FALSE}
   Predictors = c('Mean of the integrated profile.', 'Standard deviation of the integrated profile.',
            'Excess kurtosis of the integrated profile.', 'Skewness of the integrated profile.',
@@ -36,7 +36,8 @@ Figure 1 shows the boxplots for the predictors, csd was chosen as the first pred
   train = readRDS('train.Rda')
   train %>% gather('key', 'value', 1:8) %>%  
     ggplot(aes(x = pulsar, y = value, group = pulsar)) + 
-    geom_boxplot()  + facet_wrap(~key, scales = 'free')+
+    geom_boxplot(outlier.size = .1)  + stat_boxplot(geom = 'errorbar', width = .5)+
+    facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 1')
 ```
 I then checked for variables that had a strong relation to csd to exclude from the correlation. As shown if figure 2, cskew and ckurt both appear to be functions of csd so they were removed. Then pkurt was selected because it also has the property of .75 of the pulsars have a pkurt that are outliers for not pulsars.
@@ -45,9 +46,16 @@ I then checked for variables that had a strong relation to csd to exclude from t
   train[,names(train) != 'pulsar'] %>% 
     gather('key', 'value', -one_of('csd')) %>% 
     ggplot(aes(x = csd, y = value, group = key)) + 
-    geom_point() + facet_wrap(~key, scales = 'free')+
+    geom_point(size = .1) + facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 2')
 ```
+at low ckurt the relation wasn't one to one but this feature appears in pulsars and not-pulsars so this is still a good choice to exclude
+```{R ckurt_exclusion, echo = FALSE}
+  train %>% group_by(pulsar) %>%
+    ggplot(aes(x = csd, y = ckurt, group = pulsar)) + 
+    geom_point(size = .1) + facet_wrap(~pulsar)
+```
+
 then variables that  had a strong relation to pkurt were examined. Pmean and pskew appeared to be strongly related to pkurt so they were excluded. 
 
 
@@ -60,54 +68,35 @@ then variables that  had a strong relation to pkurt were examined. Pmean and psk
     ggtitle('Figure 3')
 ```
 finally it was examined if the remaining two variables were related
+
 ```{r Corr3, echo = FALSE, }
   train[,c('cmean', 'psd')]%>% ggplot(aes(x = cmean, y = psd)) + geom_point() +
     ggtitle('Figure 4')
 ```
 I determined that the variables to train the algorithm with were listed in table 2
-```{r Predictors, echo = FALSE}
-  Predictors = c( 'Standard deviation of the integrated profile.',
+```{r Final Predictors, echo = FALSE}
+  Predictors_final = c( 'Standard deviation of the integrated profile.',
            'Excess kurtosis of the integrated profile.',
            'Mean of the DM-SNR curve.', 'Standard deviation of the DM-SNR curve.')
-  Predictors_names = c('psd', 'pkurt','cmean', 'csd')
-  varstable = data.frame(Predictors, Predictors_names)
-  kable(varstable, caption = 'Predictor Names')
+  Predictors_names_final = c('psd', 'pkurt','cmean', 'csd')
+  varstable = data.frame(Predictors_final, Predictors_names_final)
+  kable(varstable, caption = 'Final Predictor Names')
   
 ```
 
 4 machine learning algorithms were used trained with different metrics with the data available and assessed for their suitability for the task table 3 shows their performance metrics. 
-```{r Predictors, echo = FALSE}
+```{r Performance, echo = FALSE}
   allstats = readRDS('allstats.Rda') %>% arrange(desc(sensitivity)) %>% arrange(desc(specificity))
   kable(allstats, caption = 'Model Performance', digits = 4)
   
 ```
 Since specificity is the most important metric because stars that are the algorithm predicts are pulsars will be further investigated and ones rejected may not be investigated to overturn the decision. for this reason the rborist model trained with a beta=.8 was chosen because it has the highest specificity without sacrificing sensitivity. 
+
 ## Results
-
-
-the final model using $Y_{m,u} = \mu + b_m + b_u + bg_{u,m} + \epsilon_{u,i}$ was corrected for the rating bounds of 0.5-5. Using this model, a RMSE of 0.8585179 was acheived on the validation set. 
-## Conclusion
-Future work on this prediction algorithm would likely benefit from an implimentation of a KNN algorithm that uses the entire training set. Due to computational and time restraints, only a small subset of the training set was used to train the knn algorithm. Also, exploration of other smoothing algorithms might improve the RMSE. In conclusion, a satisfactory prediction algorithm was acheived using only the user, movie, genre effects on the average. 
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-We are going to use the following library:
-
-
-
-
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r Specificity, echo = FALSE}
+ ans = readRDS('ans.Rda')
 ```
+Using the random forest model trained with Beta=.8 a specificity of `r  round(ans$byClass[['Specificity']], digits = 4)` was achieved
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
-
+## Conclusion
