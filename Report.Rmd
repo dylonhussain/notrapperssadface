@@ -49,7 +49,8 @@ I then checked for variables that had a strong relation to csd to exclude from t
     geom_point(size = .1) + facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 2')
 ```
-at low ckurt the relation wasn't one to one but this feature appears in pulsars and not-pulsars so this is still a good choice to exclude
+at low ckurt the relation wasn't one to one but this feature appears in pulsars and not-pulsars so it was determined that this is still a good choice to exclude.
+
 ```{R ckurt_exclusion, echo = FALSE}
   train %>% group_by(pulsar) %>%
     ggplot(aes(x = csd, y = ckurt, group = pulsar)) + 
@@ -64,13 +65,13 @@ then variables that  had a strong relation to pkurt were examined. Pmean and psk
   train[,!names(train) %in% c('pulsar', 'ckurt', 'cskew', 'csd')] %>% 
     gather('key', 'value', -one_of('pkurt'))%>% 
     ggplot(aes(x = pkurt, y = value, group = key)) + 
-    geom_point() + facet_wrap(~key, scales = 'free')+
+    geom_point(size = .1) + facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 3')
 ```
 finally it was examined if the remaining two variables were related
 
 ```{r Corr3, echo = FALSE, }
-  train[,c('cmean', 'psd')]%>% ggplot(aes(x = cmean, y = psd)) + geom_point() +
+  train[,c('cmean', 'psd')]%>% ggplot(aes(x = cmean, y = psd)) + geom_point(size = .1) +
     ggtitle('Figure 4')
 ```
 I determined that the variables to train the algorithm with were listed in table 2
@@ -84,7 +85,7 @@ I determined that the variables to train the algorithm with were listed in table
   
 ```
 
-4 machine learning algorithms were used trained with different metrics with the data available and assessed for their suitability for the task table 3 shows their performance metrics. 
+4 popular machine learning algorithms were trained with the test data and with different metrics. The metrics that were used were accuracy (default), F1 score (with beta ) and assessed for their suitability for the task table 3 shows their performance metrics. 
 ```{r Performance, echo = FALSE}
   allstats = readRDS('allstats.Rda') %>% arrange(desc(sensitivity)) %>% arrange(desc(specificity))
   kable(allstats, caption = 'Model Performance', digits = 4)
