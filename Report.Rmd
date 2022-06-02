@@ -9,7 +9,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 ## Introduction
-ere we describe an analysis to identify pulsars from metrics from their signal. Pulsars are difficult to identify because they have a periodic signal but often stars that are not pulsars have periodic signals because of noise. Considering the large amount of stars observed and the scarcity of pulsars, identifying pulsars is a great problem for machine learning. 
+ere we describe an analysis to identify pulsars from metrics from their signal. Pulsars are difficult to identify because they have a periodic signal but often stars that are not pulsars have periodic signals because of noise. Considering the large amount of stars observed and the scarcity of pulsars, there is great interest in utilizing machine learning to identifying pulsars. Here we examine the suitability of multiple popular machine learning algorithms for this task.  
 
 ```{r loading-libs, message=FALSE, echo = FALSE}
 library(ggplot2)
@@ -18,7 +18,7 @@ library(knitr)
 ```
 
 ## Methods
-The test data contains 8 predictors listed in Table 1. a 70:30 split was chosen to for this model because about .01 of the stars were known to be pulsars and 160 observations would likely not be a good estimate of the performance of the algoithm. 
+The dataset used for this analysis contains 17,898 observations; 1639 of which are known to have come from pulsars and the remaining observations did not, but have similar qualities due to noise. The dataset was split into a train set to train the model and a test set to test it's performance. A 70:30 split was chosen for this analysis because it results in an adequate number of pulsars to train the model, more than 1000. This split will also retain a sufficient number of pulsars for an accurate estimate of it's performance in future applications, where as a 90:10 split would have resulted in less than 200 pulsars and not provided an accurate estimate. The test data contains 8 predictors, listed in Table 1, which are funtionals on the observed signals that the stars emitted. In consideration of the computational cost of running this algorithm, visual methods were used to ascertain which variables were strongly related and could be discarded without significantly detrimenting the performance of the model.
 ```{r Predictors, echo = FALSE}
   Predictors = c('Mean of the integrated profile.', 'Standard deviation of the integrated profile.',
            'Excess kurtosis of the integrated profile.', 'Skewness of the integrated profile.',
@@ -30,6 +30,9 @@ The test data contains 8 predictors listed in Table 1. a 70:30 split was chosen 
   
 ```
 
+## Analysis
+
+### Predictor Selection
 Figure 1 shows the boxplots for the predictors, csd was chosen as the first predictor use for the algorithm because only .75 of the pulsars have a csd that are outliers for not pulsars.
 
 ```{r Boxplots, echo = FALSE, }
