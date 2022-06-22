@@ -9,12 +9,13 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 ## Introduction
-ere we describe an analysis to identify pulsars from metrics from their signal. Pulsars are difficult to identify because they have a periodic signal but often stars that are not pulsars have periodic signals because of noise. Considering the large amount of stars observed and the scarcity of pulsars, there is great interest in utilizing machine learning to identifying pulsars. Here we examine the suitability of multiple popular machine learning algorithms for this task.  
+Here we describe an analysis to identify pulsars from metrics from their signal. Pulsars are difficult to identify because they have a periodic signal but often stars that are not pulsars have periodic signals because of noise. Considering the large amount of stars observed and the scarcity of pulsars, there is great interest in utilizing machine learning to identifying pulsars. Here we examine the suitability of multiple popular machine learning algorithms for this task. Hereafter we will refer to observations that were determined to be pulsars as '1' and others as '0'.  
 
 ```{r loading-libs, message=FALSE, echo = FALSE}
 library(ggplot2)
 library(tidyverse)
 library(knitr)
+train = read_rds('train.rda')
 ```
 
 ## Methods
@@ -26,14 +27,13 @@ The dataset used for this analysis contains 17,898 observations; 1639 of which a
            'Excess kurtosis of the DM-SNR curve.','Skewness of the DM-SNR curve.')
   Predictors_names = c('pmean', 'psd', 'pkurt', 'pskew', 'cmean', 'csd', 'ckurt', 'cskew')
   varstable = data.frame(Predictors, Predictors_names)
-  kable(varstable, caption = 'Predictor Names')
+  kable(varstable, caption = 'Table 1')
   
 ```
 
 ## Analysis
 
 ### Predictor Selection
-Figure 1 shows the boxplots for the predictors, csd was chosen as the first predictor use for the algorithm because only .75 of the pulsars have a csd that are outliers for not pulsars.
 
 ```{r Boxplots, echo = FALSE, }
   train = readRDS('train.Rda')
@@ -43,7 +43,7 @@ Figure 1 shows the boxplots for the predictors, csd was chosen as the first pred
     facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 1')
 ```
-I then checked for variables that had a strong relation to csd to exclude from the correlation. As shown if figure 2, cskew and ckurt both appear to be functions of csd so they were removed. Then pkurt was selected because it also has the property of .75 of the pulsars have a pkurt that are outliers for not pulsars.
+Boxplots were generated for each of the predictors and are shown in Figure 1. Csd was the first predictor that was chosen to train the algorithm because, as shown above, $Q_2$ of 1 is greater than $Q_4$ of 0. The data was then examined to determine which predictors were strongly related to csd and thus, could be excluded from the training set. Each of the predictors were plotted against csd in Figure 2, cskew and ckurt were both identified as predictors that appeared to be functions of csd and were removed. 
 
 ```{r Corr1, echo = FALSE, }
   train[,names(train) != 'pulsar'] %>% 
@@ -52,26 +52,18 @@ I then checked for variables that had a strong relation to csd to exclude from t
     geom_point(size = .1) + facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 2')
 ```
-at low ckurt the relation wasn't one to one but this feature appears in pulsars and not-pulsars so it was determined that this is still a good choice to exclude.
-
-```{R ckurt_exclusion, echo = FALSE}
-  train %>% group_by(pulsar) %>%
-    ggplot(aes(x = csd, y = ckurt, group = pulsar)) + 
-    geom_point(size = .1) + facet_wrap(~pulsar)
-```
-
-then variables that  had a strong relation to pkurt were examined. Pmean and pskew appeared to be strongly related to pkurt so they were excluded. 
-
-
-  
-```{r Corr2, echo = FALSE, }
-  train[,!names(train) %in% c('pulsar', 'ckurt', 'cskew', 'csd')] %>% 
-    gather('key', 'value', -one_of('pkurt'))%>% 
+Pkurt was then selected to remain in the training set because it also has the property that $Q_2$ of 1 is greater than $Q_4$ of 0. Each remaining predictor was then plotted against pkurt, in Figure 3, to identify those that had a strong relation to pkurt. Pmean and pskew appeared to be strongly related to pkurt so they were removed from the training set. 
+```{r Corr1, echo = FALSE, }
+  train[,!(names(train) %in% c('pulsar', 'ckurt', 'cskew', 'csd'))] %>% 
+    gather('key', 'value', -one_of('pkurt')) %>% 
     ggplot(aes(x = pkurt, y = value, group = key)) + 
     geom_point(size = .1) + facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 3')
 ```
-finally it was examined if the remaining two variables were related
+
+  
+
+Finally, the remaining two variables, cmean and psd, were plotted against each other. As shown in Figure 4 they are not related so they were both retained in the final training set, summarized in Table 2 below. 
 
 ```{r Corr3, echo = FALSE, }
   train[,c('cmean', 'psd')]%>% ggplot(aes(x = cmean, y = psd)) + geom_point(size = .1) +
@@ -84,10 +76,11 @@ I determined that the variables to train the algorithm with were listed in table
            'Mean of the DM-SNR curve.', 'Standard deviation of the DM-SNR curve.')
   Predictors_names_final = c('psd', 'pkurt','cmean', 'csd')
   varstable = data.frame(Predictors_final, Predictors_names_final)
-  kable(varstable, caption = 'Final Predictor Names')
+  kable(varstable, caption = 'Table 2')
   
 ```
 
+###Algorithm Selection START HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 4 popular machine learning algorithms were trained with the test data and with different metrics. The metrics that were used were accuracy (default), F1 score (with beta ) and assessed for their suitability for the task table 3 shows their performance metrics. 
 ```{r Performance, echo = FALSE}
   allstats = readRDS('allstats.Rda') %>% arrange(desc(sensitivity)) %>% arrange(desc(specificity))
@@ -104,3 +97,11 @@ Using the random forest model trained with Beta=.8 a specificity of `r  round(an
 
 
 ## Conclusion
+
+###not sure if use
+at low ckurt the relation wasn't one to one but this feature appears in pulsars and not-pulsars so it was determined that this is still a good choice to exclude.
+```{R ckurt_exclusion, echo = FALSE}
+  train %>% group_by(pulsar) %>%
+    ggplot(aes(x = csd, y = ckurt, group = pulsar)) + 
+    geom_point(size = .1) + facet_wrap(~pulsar)
+```
