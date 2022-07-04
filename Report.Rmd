@@ -53,7 +53,7 @@ Boxplots were generated for each of the predictors and are shown in Figure 1. Cs
     ggtitle('Figure 2')
 ```
 Pkurt was then selected to remain in the training set because it also has the property that $Q_2$ of 1 is greater than $Q_4$ of 0. Each remaining predictor was then plotted against pkurt, in Figure 3, to identify those that had a strong relation to pkurt. Pmean and pskew appeared to be strongly related to pkurt so they were removed from the training set. 
-```{r Corr1, echo = FALSE, }
+```{r Corr2, echo = FALSE, }
   train[,!(names(train) %in% c('pulsar', 'ckurt', 'cskew', 'csd'))] %>% 
     gather('key', 'value', -one_of('pkurt')) %>% 
     ggplot(aes(x = pkurt, y = value, group = key)) + 
@@ -80,20 +80,20 @@ I determined that the variables to train the algorithm with were listed in table
   
 ```
 
-###Algorithm Selection START HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-4 popular machine learning algorithms were trained with the test data and with different metrics. The metrics that were used were accuracy (default), F1 score (with beta ) and assessed for their suitability for the task table 3 shows their performance metrics. 
+###Algorithm Selection 
+Four popular machine learning algorithms were trained with the "train" partition and with different summary functions.The algorithms that were tested were Random Forest, KNN, Naive Bayes, and Negative Binomial Generalized Linear Mode labeled Rborist, knn, nb, and glm respectively. To assess the these models bootstrap partitions were created from the "train" partition and the algorithms were applied to these bootstrap partitions and the relevant average metrics were recorded (see table below). Note that the models labeled "no metric" used the default metric, accuracy.Sensitivity was the metric that was used to choose the algorithm because stars that are identified as pulsars would be further investigated so it is more important for the algorithm to identify potential pulsars than to reject stars that are not pulsars. 
+
 ```{r Performance, echo = FALSE}
-  allstats = readRDS('allstats.Rda') %>% arrange(desc(sensitivity)) %>% arrange(desc(specificity))
+  allstats = readRDS('allstats.Rda') %>% arrange(desc(sensitivity)) 
   kable(allstats, caption = 'Model Performance', digits = 4)
   
 ```
-Since specificity is the most important metric because stars that are the algorithm predicts are pulsars will be further investigated and ones rejected may not be investigated to overturn the decision. for this reason the rborist model trained with a beta=.8 was chosen because it has the highest specificity without sacrificing sensitivity. 
 
 ## Results
 ```{r Specificity, echo = FALSE}
  ans = readRDS('ans.Rda')
 ```
-Using the random forest model trained with Beta=.8 a specificity of `r  round(ans$byClass[['Specificity']], digits = 4)` was achieved
+Using the random forest model trained with Beta=.8 a Sensitivity of `r  round(ans$byClass[['Sensitivity']], digits = 3)` was achieved when it was applied to the test set. This is very close to the `r allstats[['sensitivity']][[1]]` 
 
 
 ## Conclusion

@@ -66,6 +66,10 @@ spec <- function(data, lev = NULL, model = NULL) {
   c(Specificity = specificity(data = data$pred, reference = data$obs))
 }
 
+#Function to return Sensitivity, used for training models
+sens <- function(data, lev = NULL, model = NULL) {
+  c(Sensitivity = sensitivity(data = data$pred, reference = data$obs))
+}
 
 #Exploratory boxplots
 train %>% gather('key', 'value', 1:8) %>%  
@@ -90,8 +94,8 @@ train[,!names(train) %in% c('pulsar', 'ckurt', 'cskew')] %>%
 machinefood = machinefood[, !names(machinefood) %in% c('pmean', 'pskew')]
 
 #check if cmean and psd are dependent
-train[,c('cmean', 'psd')]%>% ggplot(aes(x = cmean, y = psd)) + geom_point() 
-
+train[,c('cmean', 'psd')]%>% ggplot(aes(x = cmean, y = psd)) + geom_point(size = .1) +
+  ggtitle('Figure 4')
 #Train models with default metric
 rfmodel = train(pulsar~., 
                  machinefood, 
@@ -194,19 +198,71 @@ nbmodel = train(pulsar~.,
                 method = 'nb', 
                 trControl = trainControl(method = 'boot', summaryFunction = spec),
                 metric = 'Specificity')
+rfmodel = train(pulsar~., 
+                machinefood, 
+                method = 'Rborist', 
+                trControl = trainControl(method = 'boot', summaryFunction = spec),
+                metric = 'Specificity')
 
 #Estimate performance
-temp = modelstats(rfmodel, 2) %>% data.frame %>% mutate(model = 'Rborist Specificity')
+temp = modelstats(rfmodel, 1) %>% data.frame %>% mutate(model = 'Rborist Specificity')
 allstats = union(allstats, temp)
 
-temp = modelstats(knnmodel, 2) %>% data.frame %>% mutate(model = 'knn Specificity')
+temp = modelstats(knnmodel, 1) %>% data.frame %>% mutate(model = 'knn Specificity')
 allstats = union(allstats, temp)
 
-temp = modelstats(glmmodel, 2) %>% data.frame %>% mutate(model = 'glm Specificity')
+temp = modelstats(glmmodel, 1) %>% data.frame %>% mutate(model = 'glm Specificity')
 allstats = union(allstats, temp)
 
-temp = modelstats(nbmodel, 2) %>% data.frame %>% mutate(model = 'nb Specificity')
+temp = modelstats(nbmodel, 1) %>% data.frame %>% mutate(model = 'nb Specificity')
 allstats = union(allstats, temp)
+
+
+#Train models with sensitivity as metric
+rfmodel = train(pulsar~., 
+                machinefood, 
+                method = 'Rborist', 
+                trControl = trainControl(method = 'boot', summaryFunction = sens),
+                metric = 'Sensitivity')
+
+knnmodel = train(pulsar~., 
+                 machinefood, 
+                 method = 'knn', 
+                 trControl = trainControl(method = 'boot', summaryFunction = sens),
+                 metric = 'Sensitivity')
+
+glmmodel = train(pulsar~., 
+                 machinefood, 
+                 method = 'glm', 
+                 trControl = trainControl(method = 'boot', summaryFunction = sens),
+                 metric = 'Sensitivity')
+
+nbmodel = train(pulsar~., 
+                machinefood, 
+                method = 'nb', 
+                trControl = trainControl(method = 'boot', summaryFunction = sens),
+                metric = 'Sensitivity')
+rfmodel = train(pulsar~., 
+                machinefood, 
+                method = 'Rborist', 
+                trControl = trainControl(method = 'boot', summaryFunction = sens),
+                metric = 'Sensitivity')
+
+#Estimate performance
+temp = modelstats(rfmodel, 1) %>% data.frame %>% mutate(model = 'Rborist Sensitivity')
+allstats = union(allstats, temp)
+
+temp = modelstats(knnmodel, 1) %>% data.frame %>% mutate(model = 'knn Sensitivity')
+allstats = union(allstats, temp)
+
+temp = modelstats(glmmodel, 1) %>% data.frame %>% mutate(model = 'glm Sensitivity')
+allstats = union(allstats, temp)
+
+temp = modelstats(nbmodel, 1) %>% data.frame %>% mutate(model = 'nb Sensitivity')
+allstats = union(allstats, temp)
+
+
+
 
 #Changes rownames (for aesthetics) and saves
 rownames(allstats) = c(1:as.numeric(count(allstats)))
