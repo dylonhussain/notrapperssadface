@@ -19,7 +19,7 @@ train = read_rds('train.rda')
 ```
 
 ## Methods
-The dataset used for this analysis contains 17,898 observations; 1639 of which are known to have come from pulsars and the remaining observations did not, but have similar qualities due to noise. The dataset was split into a train set to train the model and a test set to test it's performance. A 70:30 split was chosen for this analysis because it results in an adequate number of pulsars to train the model, more than 1000. This split will also retain a sufficient number of pulsars for an accurate estimate of it's performance in future applications, where as a 90:10 split would have resulted in less than 200 pulsars and not provided an accurate estimate. The test data contains 8 predictors, listed in Table 1, which are funtionals on the observed signals that the stars emitted. In consideration of the computational cost of running this algorithm, visual methods were used to ascertain which variables were strongly related and could be discarded without significantly detrimenting the performance of the model.
+The dataset used for this analysis contains 17,898 observations; 1639 of which are known to have come from pulsars and the remaining observations did not, but have similar qualities due to noise. The dataset was split into a train set to train the model and a test set to test it's performance. A 70:30 split was chosen for this analysis because it results in an adequate number of pulsars to train the model, more than 1000. This split will also retain a sufficient number of pulsars for an accurate estimate of it's performance in future applications, where as a 90:10 split would have resulted in less than 200 pulsars and not provided an accurate estimate. The test data contains 8 predictors, listed in Table 1, which are functionals on the observed signals that the stars emitted. In consideration of the computational cost of running this algorithm, visual methods were used to ascertain which variables were strongly related and could be discarded without significantly detrimenting the performance of the model.
 ```{r Predictors, echo = FALSE}
   Predictors = c('Mean of the integrated profile.', 'Standard deviation of the integrated profile.',
            'Excess kurtosis of the integrated profile.', 'Skewness of the integrated profile.',
@@ -93,15 +93,8 @@ Four popular machine learning algorithms were trained with the "train" partition
 ```{r Specificity, echo = FALSE}
  ans = readRDS('ans.Rda')
 ```
-Using the random forest model trained with Beta=.8 a Sensitivity of `r  round(ans$byClass[['Sensitivity']], digits = 3)` was achieved when it was applied to the test set. This is very close to the `r allstats[['sensitivity']][[1]]` 
+Using the random forest model trained with Beta=.8 a Sensitivity of `r  round(ans$byClass[['Sensitivity']], digits = 3)` was achieved when it was applied to the test set. As expected, it is slightly lower but still very close to the `r round(allstats[['sensitivity']][[1]], digits = 3)` predicted by bootstrapping. This algorithm also had excellent specificity, `r  round(ans$byClass[['Specificity']], digits = 3)` this indicates that the random forest model is a suitable model to identify pulsars.
 
 
 ## Conclusion
-
-###not sure if use
-at low ckurt the relation wasn't one to one but this feature appears in pulsars and not-pulsars so it was determined that this is still a good choice to exclude.
-```{R ckurt_exclusion, echo = FALSE}
-  train %>% group_by(pulsar) %>%
-    ggplot(aes(x = csd, y = ckurt, group = pulsar)) + 
-    geom_point(size = .1) + facet_wrap(~pulsar)
-```
+Multiple machine learning algorithms were tested for suitability to identify pulsars. Redundant predictors were identified and excluded to optimize computational efficiency. The optimal algorithm was found to be the Random Forest trained with a Beta=.8; this algorithm provides exceptional sensitivity and specificity and uses only four of the original eight predictors. This is a scalable algorithm that is suitable to identify pulsars. Future work on this problem may include the addition of additional predictors such as periodic variation and the addition of more observations would likely improve the algorithms' ability to identify pulsars. 
