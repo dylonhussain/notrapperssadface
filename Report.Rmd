@@ -19,7 +19,7 @@ train = read_rds('train.rda')
 ```
 
 ## Methods
-The dataset used for this analysis contains 17,898 observations; 1639 of which are known to have come from pulsars and the remaining observations did not, but have similar qualities due to noise. The dataset was split into a train set to train the model and a test set to test it's performance. A 70:30 split was chosen for this analysis because it results in an adequate number of pulsars to train the model, more than 1000. This split will also retain a sufficient number of pulsars for an accurate estimate of it's performance in future applications, where as a 90:10 split would have resulted in less than 200 pulsars and not provided an accurate estimate. The test data contains 8 predictors, listed in Table 1, which are functionals on the observed signals that the stars emitted. In consideration of the computational cost of running this algorithm, visual methods were used to ascertain which variables were strongly related and could be discarded without significantly detrimenting the performance of the model.
+The dataset used for this analysis contains 17,898 observations; 1639 of which are known to have come from pulsars and the remaining observations did not, but have similar qualities due to noise. The dataset was split into a train set to train the model and a test set to test it's performance. A 70:30 split was chosen for this analysis because it results in an adequate number of pulsars to train the model, more than 1000. This split will also retain a sufficient number of pulsars for an accurate estimate of it's performance in future applications, where as a 90:10 split would have resulted in less than 200 pulsars and not provided an accurate estimate. The test data contains 8 predictors, listed in Table 1, which are functionals on the observed signals that the stars emitted. In consideration of the computational cost of running this program, visual methods were used to ascertain which variables were strongly related and could be discarded without significantly detrimenting the performance of the model.
 ```{r Predictors, echo = FALSE}
   Predictors = c('Mean of the integrated profile.', 'Standard deviation of the integrated profile.',
            'Excess kurtosis of the integrated profile.', 'Skewness of the integrated profile.',
@@ -43,7 +43,7 @@ The dataset used for this analysis contains 17,898 observations; 1639 of which a
     facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 1')
 ```
-Boxplots were generated for each of the predictors and are shown in Figure 1. Csd was the first predictor that was chosen to train the algorithm because, as shown above, $Q_2$ of 1 is greater than $Q_4$ of 0. The data was then examined to determine which predictors were strongly related to csd and thus, could be excluded from the training set. Each of the predictors were plotted against csd in Figure 2, cskew and ckurt were both identified as predictors that appeared to be functions of csd and were removed. 
+Boxplots were generated for each of the predictors and are shown in Figure 1. Csd was the first predictor that was chosen to train the algorithm because, as shown above, $Q_2$ of 1 is greater than $Q_4$ of 0. The data was then examined to determine which predictors were strongly related to csd and thus, could be excluded from the training set. Each of the predictors were plotted against csd in Figure 2, cskew and ckurt were both identified as predictors that were functions of csd and were removed. 
 
 ```{r Corr1, echo = FALSE, }
   train[,names(train) != 'pulsar'] %>% 
@@ -53,6 +53,7 @@ Boxplots were generated for each of the predictors and are shown in Figure 1. Cs
     ggtitle('Figure 2')
 ```
 Pkurt was then selected to remain in the training set because it also has the property that $Q_2$ of 1 is greater than $Q_4$ of 0. Each remaining predictor was then plotted against pkurt, in Figure 3, to identify those that had a strong relation to pkurt. Pmean and pskew appeared to be strongly related to pkurt so they were removed from the training set. 
+
 ```{r Corr2, echo = FALSE, }
   train[,!(names(train) %in% c('pulsar', 'ckurt', 'cskew', 'csd'))] %>% 
     gather('key', 'value', -one_of('pkurt')) %>% 
@@ -69,7 +70,7 @@ Finally, the remaining two variables, cmean and psd, were plotted against each o
   train[,c('cmean', 'psd')]%>% ggplot(aes(x = cmean, y = psd)) + geom_point(size = .1) +
     ggtitle('Figure 4')
 ```
-I determined that the variables to train the algorithm with were listed in table 2
+
 ```{r Final Predictors, echo = FALSE}
   Predictors_final = c( 'Standard deviation of the integrated profile.',
            'Excess kurtosis of the integrated profile.',
@@ -80,8 +81,8 @@ I determined that the variables to train the algorithm with were listed in table
   
 ```
 
-###Algorithm Selection 
-Four popular machine learning algorithms were trained with the "train" partition and with different summary functions.The algorithms that were tested were Random Forest, KNN, Naive Bayes, and Negative Binomial Generalized Linear Mode labeled Rborist, knn, nb, and glm respectively. To assess the these models bootstrap partitions were created from the "train" partition and the algorithms were applied to these bootstrap partitions and the relevant average metrics were recorded (see table below). Note that the models labeled "no metric" used the default metric, accuracy.Sensitivity was the metric that was used to choose the algorithm because stars that are identified as pulsars would be further investigated so it is more important for the algorithm to identify potential pulsars than to reject stars that are not pulsars. 
+### Algorithm Selection 
+Four popular machine learning algorithms were trained with the "train" partition and with varying summary functions to determine the optimal algorithm.The algorithms that were tested were Random Forest, KNN, Naive Bayes, and Negative Binomial Generalized Linear Mode labeled Rborist, knn, nb, and glm respectively. To evaluate these models bootstrap partitions were created from the "train" partition and the algorithms were applied to these bootstrap partitions and the relevant average metrics were recorded (see table below). Note that the models labeled "no metric" used the default metric, accuracy. Sensitivity was the metric that was chosen to evaluate the algorithm because stars that are identified as pulsars would be further investigated so it is more important for the algorithm to identify potential pulsars than to reject stars that are not pulsars. 
 
 ```{r Performance, echo = FALSE}
   allstats = readRDS('allstats.Rda') %>% arrange(desc(sensitivity)) 
@@ -97,4 +98,4 @@ Using the random forest model trained with Beta=.8 a Sensitivity of `r  round(an
 
 
 ## Conclusion
-Multiple machine learning algorithms were tested for suitability to identify pulsars. Redundant predictors were identified and excluded to optimize computational efficiency. The optimal algorithm was found to be the Random Forest trained with a Beta=.8; this algorithm provides exceptional sensitivity and specificity and uses only four of the original eight predictors. This is a scalable algorithm that is suitable to identify pulsars. Future work on this problem may include the addition of additional predictors such as periodic variation and the addition of more observations would likely improve the algorithms' ability to identify pulsars. 
+Multiple machine learning algorithms were tested for their suitability to identify pulsars. Redundant predictors were identified and excluded to optimize computational efficiency. The optimal algorithm was found to be the Random Forest trained with a Beta=.8; this algorithm provides exceptional sensitivity and specificity and uses only four of the original eight predictors. This is a scalable algorithm to identify pulsars because of the few predictors and excellent sensitivity. Future work on this problem may include the addition of different predictors, such as periodic variation, and the addition of more observations to improve this algorithm's ability to identify pulsars. 
