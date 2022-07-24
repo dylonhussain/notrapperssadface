@@ -6,10 +6,14 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
 knitr::opts_chunk$set(echo = TRUE)
 ```
 ## Introduction
-Here we describe an analysis to identify pulsars from metrics from their signal. Pulsars are difficult to identify because they have a periodic signal but often stars that are not pulsars have periodic signals because of noise. Considering the large amount of stars that are observed and the scarcity of pulsars, there is great interest in utilizing machine learning to identify pulsars. Here we examine the suitability of multiple popular machine learning algorithms for this task. The dataset used for this analysis contains 17,898 observations; 1639 of which were examined by humans and were determined to have come from pulsars (referred to as '1') and the remaining observations did not (referred to as '0'), but have similar profiles due to noise. This dataset contains 8 predictors, listed below in Table 1, which are functionals on the observed signals that the stars emitted. 
+Here I describe an algorithm that identifies pulsars from metrics of their observed signals. Pulsars are difficult to identify because they have a periodic signal but the observed signal from stars that are not pulsars are often periodic as the result of noise. Considering the large amount of stars that are observed and the scarcity of pulsars, there is great interest in utilizing machine learning to identify pulsars. Here we examine the suitability of multiple popular machine learning algorithms for this task. The dataset used for this analysis contains 17,898 observations; 1639 of which were examined by humans and were determined to have come from pulsars (referred to as '1') and the remaining observations did not (referred to as '0'), but have similar profiles due to noise. This dataset contains 8 predictors, listed below in Table 1, which are functionals on the observed signals. 
 
 ```{r loading-libs, message=FALSE, echo = FALSE}
 library(ggplot2)
@@ -32,7 +36,7 @@ The dataset was split into a train set to train the algorithm and a test set to 
 
 
 ### Predictor Selection
-Considering the large amount of stars that will be observed in future studies, it was desirable to increase computational efficiency of this algorithm by reducing the number of predictors. Predictors that are (possibly noisy) functions of other predictors, $x_j = f(x_i)+\epsilon$, are redundant and can be excluded without being detrimental to the performance of the algorithm. Visual methods were used to ascertain which predictors were functions of other predictors, and could be discarded
+In consideration of the large amount of stars that will be observed in future studies, it was desirable to improve the computational efficiency of this algorithm by reducing the number of predictors. Predictors that are (possibly noisy) functions of other predictors, $x_j = f(x_i)+\epsilon$, are redundant and can be excluded without being detrimental to the performance of the algorithm. Visual methods were used to ascertain which predictors were functions of other predictors, and could be discarded.
 
 <!-- 'In consideration of the computational cost of running this algorithm, visual methods were used to ascertain which predictors were strongly related and could be discarded without being detrimental to the performance of the algorithm. -->
 
@@ -44,7 +48,7 @@ Considering the large amount of stars that will be observed in future studies, i
     facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 1')
 ```
-Boxplots were generated for each of the predictors and are shown in above in Figure 1. Csd was the first predictor that was chosen to retain because, as shown above, $Q_2$ of 1 is greater than $Q_4$ of 0 . The data was then examined to determine which predictors were functions of csd and thus, could be excluded. Each of the predictors were plotted against csd and, as shown in Figure 2, cskew and ckurt both appear to be functions of csd and were removed. 
+Boxplots were generated for each of the predictors and are shown above in Figure 1. Csd was the first predictor that was chosen to retain because, as shown above, $Q_1$ of 1 is greater than $Q_3$ of 0 . The data was then examined to determine which predictors were functions of csd and thus, could be excluded. Each of the predictors were plotted against csd and, as shown in Figure 2, cskew and ckurt both appear to be functions of csd and were removed. 
 
 ```{r Corr1, echo = FALSE, }
   train[,names(train) != 'pulsar'] %>% 
@@ -53,7 +57,7 @@ Boxplots were generated for each of the predictors and are shown in above in Fig
     geom_point(size = .1) + facet_wrap(~key, scales = 'free')+
     ggtitle('Figure 2, Functions of CSD')
 ```
-Pkurt was then selected to retain because it also has the property that $Q_2$ of 1 is greater than $Q_4$ of 0. Each remaining predictors were then plotted against pkurt, shown in Figure 3 below, to identify predictors that were functions of pkurt. Pmean and pskew appeared to be functions of pkurt so they were removed. 
+Pkurt was then selected to retain because it also has the property that $Q_1$ of 1 is greater than $Q_3$ of 0. Each remaining predictors were then plotted against pkurt, shown in Figure 3 below, to identify predictors that were functions of pkurt. Pmean and pskew appeared to be functions of pkurt so they were also removed. 
 
 ```{r Corr2, echo = FALSE, }
   train[,!(names(train) %in% c('pulsar', 'ckurt', 'cskew', 'csd'))] %>% 
@@ -83,7 +87,7 @@ Finally, the remaining two predictors, cmean and psd, were plotted against each 
 ```
 
 ### Algorithm Selection
-Four popular machine learning algorithms were trained with the "train" partition and with different summary functions. To determine the optimal algorithm, bootstrap samples were created from the "train" partition, the algorithms were then applied to these bootstrap samples, and the relevant average metrics were recorded (see table 3 below). The algorithms that were tested were Random Forest, KNN, Naive Bayes, and Negative Binomial Generalized Linear Mode labeled Rborist, knn, nb, and glm respectively. Note that the algorithms labeled "no metric" used the default metric, accuracy. Sensitivity was the metric that was chosen to select the algorithm because stars that are identified as pulsars by the algorithm would be further investigated so it is more important for the algorithm to identify potential pulsars than it is for it to reject stars that are not pulsars. The algorithm that had the highest predicted sensitivity was Rborist trained with beta = 0.8, this algorithm also had the highest predicted specificity. 
+Four popular machine learning algorithms were trained with the "train" partition and with different summary functions. To determine the optimal algorithm, bootstrap samples were created from the "train" partition, the algorithms were then applied to these bootstrap samples, and the relevant average metrics were recorded (see table 3 below). The algorithms that were tested were Random Forest, KNN, Naive Bayes, and Negative Binomial Generalized Linear Mode labeled Rborist, knn, nb, and glm respectively. Note that the algorithms labeled "no metric" were trained with the default metric, accuracy. Sensitivity was the metric that was chosen to select the algorithm because stars that are identified as pulsars by the algorithm will be further investigated so it is more important for the algorithm to identify potential pulsars than it is for it to reject stars that are not pulsars. The algorithm that had the highest predicted sensitivity was Rborist trained with beta = 0.8, this algorithm also had the highest predicted specificity. 
 
 ```{r Performance, echo = FALSE}
   allstats = readRDS('allstats.Rda') %>% arrange(desc(sensitivity)) 
